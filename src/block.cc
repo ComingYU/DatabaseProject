@@ -435,6 +435,52 @@ DataBlock::insertRecord(std::vector<struct iovec> &iov)
     return std::pair<bool, unsigned short>(true, index);
 }
 
+std::pair<bool,unsigned short>
+IndexBlock::insertRecord(std::vector<struct iovec> &iov)
+{
+    RelationInfo *info = table_->info_;
+    unsigned int key = info->key;
+    DataType *type = info->fields[key].type;
+
+    // 先确定插入位置
+    unsigned short index =
+        type->search(buffer_, key, iov[key].iov_base, iov[key].iov_len);
+
+    // 比较key
+    Record record;
+    if (index < getSlots()) {
+        Slot *slots = getSlotsPointer();
+        record.attach(
+            buffer_ + be16toh(slots[index].offset),
+            be16toh(slots[index].length));
+        unsigned char *pkey;
+        unsigned int len;
+        record.refByIndex(&pkey, &len, key);
+        if (memcmp(pkey, iov[key].iov_base, len) == 0) // key相等不能插入
+            return std::pair<bool, unsigned short>(false, -1);
+    }
+
+    // 如果block空间足够，插入
+    size_t blen = getFreeSize(); // 该block的富余空间
+    unsigned short actlen = (unsigned short) Record::size(iov);
+    unsigned short alignlen = ALIGN_TO_SIZE(actlen);
+    unsigned short trailerlen =
+        ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) -
+        ALIGN_TO_SIZE(getSlots() * sizeof(Slot) + sizeof(unsigned int));
+    if (blen < actlen + trailerlen)
+        return std::pair<bool, unsigned short>(false, index);
+
+    // 分配空间
+    std::pair<unsigned char *, bool> alloc_ret = allocate(actlen, index);
+    // 填写记录
+    record.attach(alloc_ret.first, actlen);
+    unsigned char header = 0;
+    record.set(iov, &header);
+    // 重新排序
+    if (alloc_ret.second) reorder(type, key);
+
+    return std::pair<bool, unsigned short>(true, index);
+}
    // 修改记录
 // 修改一条存在的记录
 // 先标定原记录为tomestone，然后插入新记录

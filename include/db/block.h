@@ -570,7 +570,7 @@ class DataBlock : public MetaBlock
     RecordIterator endrecord();
 };
 
-class IndexBlockclass : public MetaBlock
+class IndexBlock : public MetaBlock
 {
   public:
     struct RecordIterator
@@ -602,7 +602,7 @@ class IndexBlockclass : public MetaBlock
     Table *table_; // 指向table
 
   public:
-    DataBlock()
+    IndexBlock()
         : table_(NULL)
     {}
 
