@@ -1,0 +1,8 @@
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/CMakeFiles/edit_cache.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/src/CMakeFiles/dbimpl.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/src/CMakeFiles/edit_cache.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/src/CMakeFiles/rebuild_cache.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/tests/CMakeFiles/utest.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/tests/CMakeFiles/edit_cache.dir
+D:/HuaweiMoveData/Users/86191/Desktop/文件/db2/DatabaseProject/out/build/x64-Debug/tests/CMakeFiles/rebuild_cache.dir

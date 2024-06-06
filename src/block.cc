@@ -12,6 +12,7 @@
 #include <db/record.h>
 #include <db/table.h>
 
+
 namespace db {
 
 DataBlock::RecordIterator::RecordIterator()
@@ -306,7 +307,8 @@ void MetaBlock::shrink()
     setFreeSize(BLOCK_SIZE - sizeof(MetaHeader) - getTrailerSize() - space);
 }
 
-unsigned short DataBlock::searchRecord(void *buf, size_t len)
+std::pair<bool,unsigned short>
+DataBlock::searchRecord(void *buf, size_t len)
 {
     DataHeader *header = reinterpret_cast<DataHeader *>(buffer_);
 
@@ -315,7 +317,22 @@ unsigned short DataBlock::searchRecord(void *buf, size_t len)
     unsigned int key = info->key;
 
     // 调用数据类型的搜索
-    return info->fields[key].type->search(buffer_, key, buf, len);
+    unsigned  short index= info->fields[key].type->search(buffer_, key, buf, len);
+    
+    //判断lowerbound的key和搜索的key是否相同
+    Record record;
+    if (index >= getSlots()) {
+        return std::pair<bool, unsigned short>(false, index);
+    }
+    refslots(index, record);
+    unsigned char *pkey;
+    unsigned int plen;
+    record.refByIndex(&pkey, &plen, key);
+    if (memcmp(pkey, buf, len) == 0)
+        return std::pair<bool, unsigned short>(true, index);
+    else
+            return std::pair<bool,unsigned short>(false,index);
+
 }
 
 std::pair<unsigned short, bool>
@@ -361,7 +378,16 @@ unsigned short DataBlock::requireLength(std::vector<struct iovec> &iov)
             sizeof(unsigned int)); // trailer新增部分
     return (unsigned short) (length + trailer);
 }
-
+unsigned short IndexBlock::requireLength(std::vector<struct iovec> &iov)
+{
+    size_t length = ALIGN_TO_SIZE(Record::size(iov)); // 对齐8B后的长度
+    size_t trailer =
+        ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) -
+        ALIGN_TO_SIZE(
+            getSlots() * sizeof(Slot) +
+            sizeof(unsigned int)); // trailer新增部分
+    return (unsigned short) (length + trailer);
+}
 std::pair<bool, unsigned short>
 DataBlock::insertRecord(std::vector<struct iovec> &iov)
 {
@@ -407,6 +433,24 @@ DataBlock::insertRecord(std::vector<struct iovec> &iov)
     if (alloc_ret.second) reorder(type, key);
 
     return std::pair<bool, unsigned short>(true, index);
+}
+
+   // 修改记录
+// 修改一条存在的记录
+// 先标定原记录为tomestone，然后插入新记录
+bool DataBlock::updateRecord(std::vector<struct iovec>& iov) {
+    RelationInfo *info = table_->info_;
+    unsigned int key = info->key;
+    DataType *type = info->fields[key].type;
+    std::pair<bool, unsigned short> ret =
+        searchRecord(iov[key].iov_base, iov[key].iov_len);
+    if (ret.first == false) return false;
+    unsigned short index = ret.second;
+    // 将原来的标记为Tomestone
+    deallocate(index);
+    // 将新的插入
+    std::pair<bool, unsigned short> ret2 = insertRecord(iov);
+    return ret2.first;
 }
 
 bool DataBlock::copyRecord(Record &record)

@@ -5,6 +5,7 @@
 // @author niexw
 // @email niexiaowen@uestc.edu.cn
 //
+#include<iostream>
 #include "../catch.hpp"
 #include <db/block.h>
 #include <db/record.h>
@@ -523,6 +524,7 @@ TEST_CASE("db/block.h")
         std::vector<struct iovec> iov(3);
         long long nid;
         char phone[20];
+        phone[1] = '1';
         char addr[128];
 
         // 第1条记录
@@ -669,6 +671,77 @@ TEST_CASE("db/block.h")
         // 写入，释放
         kBuffer.writeBuf(bd);
         kBuffer.releaseBuf(bd);
+    }
+    SECTION("update") { 
+        Table table;
+        table.open("table");
+
+        // 从buffer中出借table:0
+        BufDesp *bd = kBuffer.borrow("table", 0);
+        REQUIRE(bd);
+        // 将bd上buffer挂到super上
+        SuperBlock super;
+        super.attach(bd->buffer);
+        int id = super.getFirst();
+        REQUIRE(id == 1);
+
+        //加载第一个data
+        DataBlock data;
+        data.setTable(&table);
+        BufDesp *bd2 = kBuffer.borrow("table",id);
+        data.attach(bd2->buffer);
+        bd2->relref();
+        
+        // 更新前
+        Record record;
+        bool test=data.refslots(2, record);
+        unsigned char *pkey;
+        unsigned int plen;
+        record.refByIndex(&pkey, &plen, 1);
+        REQUIRE(pkey[1] == '1');
+
+        // 更新记录
+        DataType *type = findDataType("BIGINT");
+        std::vector<struct iovec> iov(3);
+        long long nid;
+        char phone[20];
+        phone[1] = '0';
+        char addr[128];
+        nid = 7;
+        type->htobe(&nid);
+        iov[0].iov_base = &nid;
+        iov[0].iov_len = 8;
+        iov[1].iov_base = phone;
+        iov[1].iov_len = 20;
+        iov[2].iov_base = (void *) addr;
+        iov[2].iov_len = 128;
+        unsigned short osize = data.getFreespaceSize();
+        unsigned short nsize = data.requireLength(iov);
+        REQUIRE(nsize == 168);
+        bool ret = data.updateRecord(iov);
+        REQUIRE(ret);
+        REQUIRE(data.getFreespaceSize() == osize - nsize);
+        REQUIRE(data.getSlots() == 4);
+        // 检查是否为更新的内容
+        data.refslots(2, record);
+        record.refByIndex(&pkey, &plen, 1);
+        REQUIRE(pkey[1] == '0');
+
+
+        // 将变长长度增大到大于无法直接更新
+        unsigned short a = data.getFreeSize();
+        iov[2].iov_len = (size_t) a + 135;
+        ret = data.updateRecord(iov);
+        REQUIRE(!ret);
+        // 此时Record被标记为Tomestone，但是没有插入，需要分裂blk
+        if (!ret) {
+            iov[2].iov_base = (void *) addr;
+            iov[2].iov_len = 128;
+            std::pair<bool, unsigned short> ret2=data.insertRecord(iov);
+            REQUIRE(ret2.first);
+        }
+
+
     }
 
     SECTION("iterator")

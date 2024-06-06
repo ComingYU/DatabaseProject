@@ -535,8 +535,9 @@ class DataBlock : public MetaBlock
     // 1. 根据meta确定key的位置；
     // 2. 采用二分查找在slots[]上寻找
     // 返回值：
-    // 返回lowerbound
-    unsigned short searchRecord(void *key, size_t size);
+    // 返回lowerbound->返回是否存在和lowerbound
+    std::pair<bool,unsigned short>
+    searchRecord(void *key, size_t size);
     // 插入记录
     // 在block中插入记录，步骤如下：
     // 1. 先检查空间是否足够，如果够，则插入，然后重新排序；
@@ -569,6 +570,85 @@ class DataBlock : public MetaBlock
     RecordIterator endrecord();
 };
 
+class IndexBlockclass : public MetaBlock
+{
+  public:
+    struct RecordIterator
+    {
+        DataBlock *block;
+        Record record;
+        unsigned short index;
+
+        RecordIterator();
+        ~RecordIterator();
+        RecordIterator(const RecordIterator &other);
+
+        // 前置操作
+        RecordIterator &operator++();
+        // 后置操作
+        RecordIterator operator++(int);
+        // 前置操作
+        RecordIterator &operator--();
+        // 后置操作
+        RecordIterator operator--(int);
+        // 加减操作
+        RecordIterator &operator+=(int);
+        RecordIterator &operator-=(int);
+        // 数据块指针
+        Record *operator->();
+    };
+
+  public:
+    Table *table_; // 指向table
+
+  public:
+    DataBlock()
+        : table_(NULL)
+    {}
+
+    // 设定table
+    inline void setTable(Table *table) { table_ = table; }
+    // 获取table
+    inline Table *getTable() { return table_; }
+
+    // 查询记录
+    // 给定一个关键字，从slots[]上搜索到该记录：
+    // 1. 根据meta确定key的位置；
+    // 2. 采用二分查找在slots[]上寻找
+    // 返回值：
+    // 返回lowerbound->返回是否存在和lowerbound
+    std::pair<bool, unsigned short> searchRecord(void *key, size_t size);
+    // 插入记录
+    // 在block中插入记录，步骤如下：
+    // 1. 先检查空间是否足够，如果够，则插入，然后重新排序；
+    // 2. 不够，根据key寻找插入位置，从这个位置将block劈开；
+    // 3. 计算劈开后前面序列的长度，然后判断新记录加入后空间是否足够，够则插入；
+    // 4. 先将新的记录插入一个新的block，然后挪动原有记录到新的block；
+    // 返回值：
+    // true - 表示记录完全插入
+    // false - 表示block被分裂
+    std::pair<bool, unsigned short>
+    insertRecord(std::vector<struct iovec> &iov);
+    // 修改记录
+    // 修改一条存在的记录
+    // 先标定原记录为tomestone，然后插入新记录
+    bool updateRecord(std::vector<struct iovec> &iov);
+    // 分裂块位置
+    // 给定新增的记录大小和位置，计算从何处开始分裂该block
+    // 1. 先按照键排序
+    // 2. 从0开始枚举所有记录，累加长度，何时超过一半，即为分裂位置
+    std::pair<unsigned short, bool>
+    splitPosition(size_t space, unsigned short index);
+    // 拷贝一条记录
+    // 如果新block空间不够，简单地返回false
+    bool copyRecord(Record &record);
+
+    // 记录分配长度
+    unsigned short requireLength(std::vector<struct iovec> &iov);
+
+    RecordIterator beginrecord();
+    RecordIterator endrecord();
+};
 inline bool operator==(
     const DataBlock::RecordIterator &x,
     const DataBlock::RecordIterator &y)
